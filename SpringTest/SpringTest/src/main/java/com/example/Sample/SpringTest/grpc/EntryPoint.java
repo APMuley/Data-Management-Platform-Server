@@ -35,26 +35,62 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
     @Override
     public void saveJson(Request request, StreamObserver<Response> responseObserver) {
         String rawrequest = request.getResponseString();
+        String[] rawrequestObj = rawrequest.split("####");
 
         String requestString = null;
         try {
-            requestString = Aes.decrypt(rawrequest, keyString);
+            requestString = Aes.decrypt(rawrequestObj[0], keyString);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
         String[] reqObject = requestString.split("####");
 
-        String route = null;
-        try {
-            route = reqObject[0];
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        if (Aes.hash(reqObject[0] + reqObject[1]).equals(rawrequestObj[1])) {
+            Response response = null;
+            try {
+                response = Response.newBuilder()
+                        .setResult(Aes.encrypt("req has been corrupted...", keyString))
+                        .build();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            // Send the response back to the client
+            responseObserver.onNext(response);
+            // Complete the call
+            responseObserver.onCompleted();
         }
 
-        if (route.equals("/create/template")) {
+            String route = null;
             try {
+                route = reqObject[0];
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
 
+            if (route.equals("/create/template")) {
+                try {
+
+                    String json = null;
+                    try {
+                        json = reqObject[1];
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    t.save(JSON_Parsor.fromJson(JSON_Parsor.parse(json), Template.class));
+                    Response response = Response.newBuilder()
+                            .setResult(Aes.encrypt("Done.", keyString))
+                            .build();
+                    // Send the response back to the client
+                    responseObserver.onNext(response);
+                    // Complete the call
+                    responseObserver.onCompleted();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            } else if (route.equals("/create/object")) {
+                // Get string of objects separated by $
                 String json = null;
                 try {
                     json = reqObject[1];
@@ -62,190 +98,171 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
                     throw new RuntimeException(e);
                 }
 
-                t.save(JSON_Parsor.fromJson(JSON_Parsor.parse(json), Template.class));
-                Response response = Response.newBuilder()
-                        .setResult(Aes.encrypt("Done.", keyString))
-                        .build();
+                // Get the number of objects according to the number of $ signs
+                int num_objects = 0;
+                for (int i = 0; i < json.length(); i++) {
+                    if (json.charAt(i) == '$') {
+                        num_objects++;
+                    }
+                }
+                num_objects++;
+
+                // if there's one object then call submitObject function on it
+                // else go through all the objects in the string that are split by $
+                // and then call submitObject on all of them
+                if (num_objects == 1) {
+                    try {
+                        o.submitObject(json);
+                    } catch (JSONException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    String[] parts = json.split("\\$");
+                    for (int i = 0; i < num_objects; i++) {
+                        try {
+                            o.submitObject(parts[i]);
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+
+                Response response = null;
+                try {
+                    response = Response.newBuilder()
+                            .setResult(Aes.encrypt("Done.", keyString))
+                            .build();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
                 // Send the response back to the client
                 responseObserver.onNext(response);
                 // Complete the call
                 responseObserver.onCompleted();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        } else if (route.equals("/create/object")) {
-            // Get string of objects separated by $
-            String json = null;
-            try {
-                json = reqObject[1];
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
 
-            // Get the number of objects according to the number of $ signs
-            int num_objects = 0;
-            for (int i = 0; i < json.length(); i++) {
-                if (json.charAt(i) == '$') {
-                    num_objects++;
-                }
-            }
-            num_objects++;
+            } else if (route.startsWith("/template/attachAttributeExpression/")) {
+                String[] parts = route.split("/");
+                String templateName = parts[3];
+                String attributeName = parts[4];
+                String expression = parts[5];
 
-            // if there's one object then call submitObject function on it
-            // else go through all the objects in the string that are split by $
-            // and then call submitObject on all of them
-            if (num_objects == 1) {
                 try {
-                    o.submitObject(json);
+                    t.attachExpressionToTemplateAttribute(templateName, attributeName, expression);
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                }
+
+                Response response = null;
+                try {
+                    response = Response.newBuilder()
+                            .setResult(Aes.encrypt("Expression attached.", keyString))
+                            .build();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                // Send the response back to the client
+                responseObserver.onNext(response);
+                // Complete the call
+                responseObserver.onCompleted();
+
+            } else if (route.startsWith("/template/attachTemplateExpression/")) {
+                String[] parts = route.split("/");
+                String templateName = parts[3];
+
+                // Get json of expression
+                String json = null;
+                try {
+                    json = reqObject[1];
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+
+                // Modify Json
+                JSONObject jsonObject = null;
+                try {
+                    jsonObject = new JSONObject(json);
                 } catch (JSONException e) {
                     throw new RuntimeException(e);
                 }
-            } else {
-                String[] parts = json.split("\\$");
-                for (int i=0; i<num_objects; i++) {
-                    try {
-                        o.submitObject(parts[i]);
-                    } catch (JSONException e) {
-                        throw new RuntimeException(e);
+
+                // Get the value of "expressionString"
+                String expression = null;
+                try {
+                    expression = jsonObject.getString("expressionString");
+                } catch (JSONException e) {
+                    throw new RuntimeException(e);
+                }
+
+                // Define the regex pattern for words (sequences of alphabetic characters)
+                Pattern wordPattern = Pattern.compile("\\b[a-zA-Z]+\\b");
+                Matcher matcher = wordPattern.matcher(expression);
+
+                // Use StringBuilder to build the modified string
+                StringBuilder modifiedExpression = new StringBuilder();
+
+
+                List<String> expressions = t.getExpressionListByTemplateName(templateName);
+                List<String> attributeNames = t.getAttributeListByTemplateName(templateName);
+                while (matcher.find()) {
+                    String word = matcher.group();
+
+                    // Check if the word is in the list
+                    if (attributeNames.contains(word)) {
+                        String replacement = templateName + ".a." + word;
+                        matcher.appendReplacement(modifiedExpression, replacement);
+                    } else if (expressions.contains(word)) {
+                        String replacement = templateName + ".e." + word;
+                        matcher.appendReplacement(modifiedExpression, replacement);
                     }
                 }
-            }
 
-            Response response = null;
-            try {
-                response = Response.newBuilder()
-                        .setResult(Aes.encrypt("Done.", keyString))
-                        .build();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            // Send the response back to the client
-            responseObserver.onNext(response);
-            // Complete the call
-            responseObserver.onCompleted();
+                // Append any remaining text after the last match
+                matcher.appendTail(modifiedExpression);
 
-        } else if (route.startsWith("/template/attachAttributeExpression/")) {
-            String[] parts = route.split("/");
-            String templateName = parts[3];
-            String attributeName = parts[4];
-            String expression = parts[5];
-
-            try {
-                t.attachExpressionToTemplateAttribute(templateName, attributeName, expression);
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
-            }
-
-            Response response = null;
-            try {
-                response = Response.newBuilder()
-                        .setResult(Aes.encrypt("Expression attached.", keyString))
-                        .build();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            // Send the response back to the client
-            responseObserver.onNext(response);
-            // Complete the call
-            responseObserver.onCompleted();
-
-        } else if (route.startsWith("/template/attachTemplateExpression/")) {
-            String[] parts = route.split("/");
-            String templateName = parts[3];
-
-            // Get json of expression
-            String json = null;
-            try {
-                json = reqObject[1];
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-            // Modify Json
-            JSONObject jsonObject = null;
-            try {
-                jsonObject = new JSONObject(json);
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            }
-
-            // Get the value of "expressionString"
-            String expression = null;
-            try {
-                expression = jsonObject.getString("expressionString");
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            }
-
-            // Define the regex pattern for words (sequences of alphabetic characters)
-            Pattern wordPattern = Pattern.compile("\\b[a-zA-Z]+\\b");
-            Matcher matcher = wordPattern.matcher(expression);
-
-            // Use StringBuilder to build the modified string
-            StringBuilder modifiedExpression = new StringBuilder();
-
-
-            List<String> expressions = t.getExpressionListByTemplateName(templateName);
-            List<String> attributeNames = t.getAttributeListByTemplateName(templateName);
-            while (matcher.find()) {
-                String word = matcher.group();
-
-                // Check if the word is in the list
-                if (attributeNames.contains(word)) {
-                    String replacement = templateName + ".a." + word;
-                    matcher.appendReplacement(modifiedExpression, replacement);
-                } else if (expressions.contains(word)){
-                    String replacement = templateName + ".e." + word;
-                    matcher.appendReplacement(modifiedExpression, replacement);
+                // Update the JSON object with the modified expressionString
+                try {
+                    jsonObject.put("expressionString", modifiedExpression.toString());
+                } catch (JSONException e) {
+                    throw new RuntimeException(e);
                 }
+
+                try {
+                    t.attachExpressionToTemplate(jsonObject.toString(), templateName);
+                } catch (JSONException e) {
+                    throw new RuntimeException(e);
+                }
+
+                Response response = null;
+                try {
+                    response = Response.newBuilder()
+                            .setResult(Aes.encrypt("Attached expression.", keyString))
+                            .build();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                // Send the response back to the client
+                responseObserver.onNext(response);
+                // Complete the call
+                responseObserver.onCompleted();
+
+            } else if (route.startsWith("/template/")) {
+                String parameter = route.substring("/template/".length());
+                String result = t.getTemplateBytemplatename(parameter);
+                Response response = null;
+
+                try {
+                    response = Response.newBuilder()
+                            .setResult(Aes.encrypt(result, keyString))
+                            .build();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                // Send the response back to the client
+                responseObserver.onNext(response);
+                // Complete the call
+                responseObserver.onCompleted();
             }
 
-            // Append any remaining text after the last match
-            matcher.appendTail(modifiedExpression);
-
-            // Update the JSON object with the modified expressionString
-            try {
-                jsonObject.put("expressionString", modifiedExpression.toString());
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            }
-
-            try {
-                t.attachExpressionToTemplate(jsonObject.toString(), templateName);
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            }
-
-            Response response = null;
-            try {
-                response = Response.newBuilder()
-                        .setResult(Aes.encrypt("Attached expression.", keyString))
-                        .build();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            // Send the response back to the client
-            responseObserver.onNext(response);
-            // Complete the call
-            responseObserver.onCompleted();
-
-        } else if (route.startsWith("/template/")) {
-            String parameter = route.substring("/template/".length());
-            String result = t.getTemplateBytemplatename(parameter);
-            Response response = null;
-
-            try {
-                response = Response.newBuilder()
-                        .setResult(Aes.encrypt(result, keyString))
-                        .build();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            // Send the response back to the client
-            responseObserver.onNext(response);
-            // Complete the call
-            responseObserver.onCompleted();
-        }
     }
 
 

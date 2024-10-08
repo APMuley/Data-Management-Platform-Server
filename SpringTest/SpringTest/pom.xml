@@ -131,6 +131,11 @@
 			<version>1.66.0</version>
 		</dependency>
 
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcpkix-jdk15on</artifactId>
+			<version>1.70</version> <!-- Check for the latest version -->
+		</dependency>
 
 
 
