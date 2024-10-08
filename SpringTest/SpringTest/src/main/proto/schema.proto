@@ -1,0 +1,17 @@
+syntax="proto3";
+option java_multiple_files=true;
+package MyPackage;
+
+service ReqResService {
+ rpc SaveJson(Request) returns (Response);
+}
+
+message Request {
+ string route=1;
+ string jsondata=2;
+}
+
+message Response {
+ string result=1;
+}
+
