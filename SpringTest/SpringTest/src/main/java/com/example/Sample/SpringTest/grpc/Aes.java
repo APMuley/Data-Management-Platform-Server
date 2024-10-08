@@ -57,7 +57,6 @@ public class Aes {
 
         // Base64 encode the combined IV and ciphertext
         String base64EncodedCiphertext = Base64.getEncoder().encodeToString(ivAndCiphertext);
-        System.out.println("Encrypted JSON: " + base64EncodedCiphertext);
 
         return base64EncodedCiphertext;
     }

@@ -34,12 +34,20 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
 
     @Override
     public void saveJson(Request request, StreamObserver<Response> responseObserver) {
-        String rawroute = request.getRoute();
-        String rawjson = request.getJsondata();
+        String rawrequest = request.getResponseString();
+
+        String requestString = null;
+        try {
+            requestString = Aes.decrypt(rawrequest, keyString);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        String[] reqObject = requestString.split("####");
 
         String route = null;
         try {
-            route = Aes.decrypt(rawroute, keyString);
+            route = reqObject[0];
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -49,7 +57,7 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
 
                 String json = null;
                 try {
-                    json = Aes.decrypt(rawjson, keyString);
+                    json = reqObject[1];
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -69,7 +77,7 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
             // Get string of objects separated by $
             String json = null;
             try {
-                json = Aes.decrypt(rawjson, keyString);
+                json = reqObject[1];
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -148,7 +156,7 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
             // Get json of expression
             String json = null;
             try {
-                json = Aes.decrypt(rawjson, keyString);
+                json = reqObject[1];
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

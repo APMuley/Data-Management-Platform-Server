@@ -7,8 +7,7 @@ service ReqResService {
 }
 
 message Request {
- string route=1;
- string jsondata=2;
+ string responseString = 1;
 }
 
 message Response {
