@@ -37,20 +37,41 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
         String rawrequest = request.getResponseString();
         String[] rawrequestObj = rawrequest.split("####");
 
+        if (!JWTToken.verifyToken(rawrequestObj[2])) {
+            Response response = null;
+            try {
+                response = Response.newBuilder()
+                        .setResult(AES.encrypt("token is bad...", keyString))
+                        .build();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            // Send the response back to the client
+            responseObserver.onNext(response);
+            // Complete the call
+            responseObserver.onCompleted();
+        }
+        
+
         String requestString = null;
         try {
-            requestString = Aes.decrypt(rawrequestObj[0], keyString);
+            requestString = AES.decrypt(rawrequestObj[0], keyString);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
         String[] reqObject = requestString.split("####");
+        String singleQuotedJson = reqObject[1].replace("\"", "'");
 
-        if (Aes.hash(reqObject[0] + reqObject[1]).equals(rawrequestObj[1])) {
+        // Remove unnecessary whitespace and newlines
+        singleQuotedJson = singleQuotedJson.replaceAll("\\s+", "");
+        System.out.println(reqObject[0]+singleQuotedJson);
+
+        if (!SHA256Hash.hash(reqObject[0] + singleQuotedJson).equals(rawrequestObj[1])) {
             Response response = null;
             try {
                 response = Response.newBuilder()
-                        .setResult(Aes.encrypt("req has been corrupted...", keyString))
+                        .setResult(AES.encrypt("req has been corrupted...", keyString))
                         .build();
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -80,7 +101,7 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
 
                     t.save(JSON_Parsor.fromJson(JSON_Parsor.parse(json), Template.class));
                     Response response = Response.newBuilder()
-                            .setResult(Aes.encrypt("Done.", keyString))
+                            .setResult(AES.encrypt("Done.", keyString))
                             .build();
                     // Send the response back to the client
                     responseObserver.onNext(response);
@@ -130,7 +151,7 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
                 Response response = null;
                 try {
                     response = Response.newBuilder()
-                            .setResult(Aes.encrypt("Done.", keyString))
+                            .setResult(AES.encrypt("Done.", keyString))
                             .build();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
@@ -155,7 +176,7 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
                 Response response = null;
                 try {
                     response = Response.newBuilder()
-                            .setResult(Aes.encrypt("Expression attached.", keyString))
+                            .setResult(AES.encrypt("Expression attached.", keyString))
                             .build();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
@@ -235,7 +256,7 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
                 Response response = null;
                 try {
                     response = Response.newBuilder()
-                            .setResult(Aes.encrypt("Attached expression.", keyString))
+                            .setResult(AES.encrypt("Attached expression.", keyString))
                             .build();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
@@ -252,7 +273,7 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
 
                 try {
                     response = Response.newBuilder()
-                            .setResult(Aes.encrypt(result, keyString))
+                            .setResult(AES.encrypt(result, keyString))
                             .build();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
@@ -262,6 +283,7 @@ public class EntryPoint extends ReqResServiceGrpc.ReqResServiceImplBase {
                 // Complete the call
                 responseObserver.onCompleted();
             }
+
 
     }
 

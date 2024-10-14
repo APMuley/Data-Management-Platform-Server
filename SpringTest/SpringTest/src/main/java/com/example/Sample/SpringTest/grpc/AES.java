@@ -3,15 +3,11 @@ package com.example.Sample.SpringTest.grpc;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.Security;
 import java.util.Base64;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 
-public class Aes {
+public class AES {
+
     static String decrypt(String ctB64, String keyString) throws Exception {
 
         byte[] key = keyString.getBytes("UTF-8");
@@ -65,27 +61,6 @@ public class Aes {
         String base64EncodedCiphertext = Base64.getEncoder().encodeToString(ivAndCiphertext);
 
         return base64EncodedCiphertext;
-    }
-
-    public static String hash(String input) {
-        try {
-            Security.addProvider(new BouncyCastleProvider());
-            MessageDigest digest = MessageDigest.getInstance("SHA-256", "BC");
-            byte[] hashBytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return bytesToHex(hashBytes);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder hexString = new StringBuilder();
-        for (byte b : bytes) {
-            String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) hexString.append('0');
-            hexString.append(hex);
-        }
-        return hexString.toString();
     }
 
 }
